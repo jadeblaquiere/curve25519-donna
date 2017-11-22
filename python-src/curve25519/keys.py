@@ -36,6 +36,14 @@ class Private:
         shared = _curve25519.make_shared(self.private, public.public)
         return hashfunc(shared)
 
+    def get_shared_key_fast(self, public, hashfunc=None):
+        if not isinstance(public, Public):
+            raise ValueError("'public' must be an instance of Public")
+        if hashfunc is None:
+            hashfunc = _hash_shared
+        shared = _curve25519.make_shared_fast(self.private, public.public)
+        return hashfunc(shared)
+
 class Public:
     def __init__(self, public):
         assert isinstance(public, bytes)

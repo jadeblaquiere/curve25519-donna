@@ -447,3 +447,81 @@ curve25519_donna(u8 *mypublic, const u8 *secret, const u8 *basepoint) {
   fcontract(mypublic, z);
   return 0;
 }
+
+
+/* Calculates nQ where Q is the x-coordinate of a point on the curve
+ *
+ *   resultx/resultz: the x coordinate of the resulting curve point (short form)
+ *   n: a little endian, 32-byte number
+ *   q: a point of the curve (short form)
+ */
+static void
+fastmult(limb *resultx, limb *resultz, const u8 *n, const limb *q) {
+  limb a[5] = {0}, b[5] = {1}, c[5] = {1}, d[5] = {0};
+  limb *nqpqx = a, *nqpqz = b, *nqx = c, *nqz = d, *t;
+  limb e[5] = {0}, f[5] = {1}, g[5] = {0}, h[5] = {1};
+  limb *nqpqx2 = e, *nqpqz2 = f, *nqx2 = g, *nqz2 = h;
+
+  unsigned i, j, k;
+
+  memcpy(nqpqx, q, sizeof(limb) * 5);
+
+  for (k = 0; k < 31; ++k) {
+    if (n[31 - k] != 0) break;
+  }
+
+  for (i = k; i < 32; ++i) {
+    u8 byte = n[31 - i];
+    for (j = 0; j < 8; ++j) {
+      const limb bit = byte >> 7;
+
+      swap_conditional(nqx, nqpqx, bit);
+      swap_conditional(nqz, nqpqz, bit);
+      fmonty(nqx2, nqz2,
+             nqpqx2, nqpqz2,
+             nqx, nqz,
+             nqpqx, nqpqz,
+             q);
+      swap_conditional(nqx2, nqpqx2, bit);
+      swap_conditional(nqz2, nqpqz2, bit);
+
+      t = nqx;
+      nqx = nqx2;
+      nqx2 = t;
+      t = nqz;
+      nqz = nqz2;
+      nqz2 = t;
+      t = nqpqx;
+      nqpqx = nqpqx2;
+      nqpqx2 = t;
+      t = nqpqz;
+      nqpqz = nqpqz2;
+      nqpqz2 = t;
+
+      byte <<= 1;
+    }
+  }
+
+  memcpy(resultx, nqx, sizeof(limb) * 5);
+  memcpy(resultz, nqz, sizeof(limb) * 5);
+}
+
+
+int
+curve25519_donna_fast(u8 *mypublic, const u8 *secret, const u8 *basepoint) {
+  limb bp[5], x[5], z[5], zmone[5];
+  uint8_t e[32];
+  int i;
+
+  for (i = 0;i < 32;++i) e[i] = secret[i];
+  e[0] &= 248;
+  e[31] &= 127;
+  //e[31] |= 64;
+
+  fexpand(bp, basepoint);
+  fastmult(x, z, e, bp);
+  crecip(zmone, z);
+  fmul(z, x, zmone);
+  fcontract(mypublic, z);
+  return 0;
+}

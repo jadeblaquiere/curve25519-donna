@@ -17,6 +17,9 @@
 int curve25519_donna(char *mypublic, 
                      const char *secret, const char *basepoint);
 
+int curve25519_donna_fast(char *mypublic, 
+                     const char *secret, const char *basepoint);
+
 static PyObject *
 pycurve25519_makeprivate(PyObject *self, PyObject *args)
 {
@@ -30,7 +33,7 @@ pycurve25519_makeprivate(PyObject *self, PyObject *args)
     }
     in1[0] &= 248;
     in1[31] &= 127;
-    in1[31] |= 64;
+    // in1[31] |= 64;
     return PyBytes_FromStringAndSize((char *)in1, 32);
 }
 
@@ -73,11 +76,34 @@ pycurve25519_makeshared(PyObject *self, PyObject *args)
 }
 
 
+static PyObject *
+pycurve25519_makeshared_fast(PyObject *self, PyObject *args)
+{
+    const char *myprivate, *theirpublic;
+    char shared_key[32];
+    Py_ssize_t myprivatelen, theirpubliclen;
+    if (!PyArg_ParseTuple(args, y"#"y"#:generate",
+                          &myprivate, &myprivatelen, &theirpublic, &theirpubliclen))
+        return NULL;
+    if (myprivatelen != 32) {
+        PyErr_SetString(PyExc_ValueError, "input must be 32-byte string");
+        return NULL;
+    }
+    if (theirpubliclen != 32) {
+        PyErr_SetString(PyExc_ValueError, "input must be 32-byte string");
+        return NULL;
+    }
+    curve25519_donna_fast(shared_key, myprivate, theirpublic);
+    return PyBytes_FromStringAndSize((char *)shared_key, 32);
+}
+
+
 static PyMethodDef
 curve25519_functions[] = {
     {"make_private", pycurve25519_makeprivate, METH_VARARGS, "data->private"},
     {"make_public", pycurve25519_makepublic, METH_VARARGS, "private->public"},
     {"make_shared", pycurve25519_makeshared, METH_VARARGS, "private+public->shared"},
+    {"make_shared_fast", pycurve25519_makeshared_fast, METH_VARARGS, "private+public->shared, fast, not constant time"},
     {NULL, NULL, 0, NULL},
 };
 
